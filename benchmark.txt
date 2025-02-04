@@ -36,3 +36,20 @@ DiceLoss + FocalLoss, 5 epochs, sample
 │      test_loss_epoch      │    0.5235289335250854     │
 │      test_mIoU_epoch      │    0.10000000149011612    │
 └───────────────────────────┴───────────────────────────┘
+
+Marc modèle, 5 epochs
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │           0.75            │
+│     test_Acc_1_epoch      │            1.0            │
+│     test_IoU_0_epoch      │           0.75            │
+│     test_IoU_1_epoch      │            0.5            │
+│  test_Precision_0_epoch   │            1.0            │
+│  test_Precision_1_epoch   │            0.5            │
+│    test_Recall_0_epoch    │           0.75            │
+│    test_Recall_1_epoch    │            1.0            │
+│      test_aAcc_epoch      │     0.800000011920929     │
+│      test_loss_epoch      │    0.5658785104751587     │
+│      test_mIoU_epoch      │           0.625           │
+└───────────────────────────┴───────────────────────────┘
