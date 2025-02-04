@@ -583,6 +583,7 @@ def main(cfg: DictConfig) -> None:
             auto_insert_metric_name=False,
             mode="max",
             save_top_k=3,
+            save_last=True,
         )
 
         logger = TensorBoardLogger(hydra_out_dir, name="instageo")
