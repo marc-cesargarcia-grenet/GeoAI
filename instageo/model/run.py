@@ -31,6 +31,7 @@ import pytorch_lightning as pl
 import rasterio
 import torch
 import torch.nn as nn
+import torchmetrics
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -152,6 +153,68 @@ def create_dataloader(
     )
 
 
+import torch.nn.functional as F
+
+
+class DiceLoss(nn.Module):
+    def __init__(self, smooth: float = 1e-6):
+        super().__init__()
+        self.smooth = smooth
+
+    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Forward pass of Dice Loss.
+
+        Args:
+            predictions (torch.Tensor): Model predictions after softmax (B, C, H, W)
+            targets (torch.Tensor): Ground truth labels (B, H, W)
+
+        Returns:
+            torch.Tensor: Dice loss value
+        """
+        predictions = torch.softmax(predictions, dim=1)
+        targets = torch.nn.functional.one_hot(targets, predictions.size(1))
+        targets = targets.permute(0, 3, 1, 2)
+
+        intersection = torch.sum(predictions * targets, dim=[0, 2, 3])
+        union = torch.sum(predictions, dim=[0, 2, 3]) + torch.sum(
+            targets, dim=[0, 2, 3]
+        )
+
+        dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
+        return 1 - dice.mean()
+
+
+class FocalLoss(nn.Module):
+    def __init__(self, alpha=0.8, gamma=2):
+        super().__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+
+    def forward(self, preds, targets):
+        # preds: shape [B, C, H, W]
+        # targets: shape [B, H, W] with integer labels
+        # Convert targets to one-hot format:
+        num_classes = preds.size(1)
+        # one_hot will have shape [B, H, W, C]
+        targets_one_hot = F.one_hot(targets, num_classes=num_classes).float()
+        # Permute to [B, C, H, W]
+        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2)
+
+        # Compute binary cross entropy with logits for each pixel/class
+        BCE = F.binary_cross_entropy_with_logits(
+            preds, targets_one_hot, reduction="none"
+        )
+        pt = torch.exp(-BCE)  # pt = exp(-loss)
+        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE
+        return focal_loss.mean()
+
+
+loss_fn = DiceLoss()
+loss_fn = lambda preds, targets: 0.5 * DiceLoss()(preds, targets) + 0.5 * FocalLoss()(
+    preds, targets
+)
+
+
 class PrithviSegmentationModule(pl.LightningModule):
     """Prithvi Segmentation PyTorch Lightning Module."""
 
@@ -192,6 +255,7 @@ class PrithviSegmentationModule(pl.LightningModule):
         self.criterion = nn.CrossEntropyLoss(
             ignore_index=ignore_index, weight=weight_tensor
         )
+        # self.criterion = loss_fn
         self.learning_rate = learning_rate
         self.ignore_index = ignore_index
         self.weight_decay = weight_decay
