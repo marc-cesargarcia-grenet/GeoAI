@@ -74,6 +74,106 @@ def download_file(url: str, filename: str | Path, retries: int = 3) -> None:
         raise Exception("Failed to download the file after several attempts.")
 
 
+class SEBlock(nn.Module):
+    """
+    Module Squeeze-and-Excitation pour recalibrer les canaux.
+    """
+    def __init__(self, channels, reduction=16):
+        super(SEBlock, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, channels // reduction, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(channels // reduction, channels, bias=False),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.size()
+        y = self.avg_pool(x).view(b, c)
+        y = self.fc(y).view(b, c, 1, 1)
+        return x * y
+
+class UpscalingBlock(nn.Module):
+    """
+    Bloc d'upscaling incluant :
+      - Une convolution transposée pour augmenter la résolution,
+      - Une convolution classique pour raffiner la représentation,
+      - Un module SE pour introduire une attention sur les canaux.
+      
+    Possibilité d'intégrer une skip connection (fusion simple par addition).
+    """
+    def __init__(self, in_channels, out_channels):
+        super(UpscalingBlock, self).__init__()
+        self.up = nn.ConvTranspose2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=3,
+            stride=2,
+            padding=1,
+            output_padding=1
+        )
+        self.conv = nn.Sequential(
+            nn.Conv2d(
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=3,
+                padding=1
+            ),
+            nn.BatchNorm2d(out_channels),
+            nn.ReLU(inplace=True)
+        )
+        self.se = SEBlock(out_channels)
+
+    def forward(self, x, skip=None):
+        x = self.up(x)
+        if skip is not None:
+            if skip.shape != x.shape:
+                skip = nn.functional.interpolate(skip, size=x.shape[2:], mode='bilinear', align_corners=False)
+            x = x + skip
+        x = self.conv(x)
+        x = self.se(x)
+        return x
+
+class ImprovedSegmentationHead(nn.Module):
+    """
+    Tête de segmentation améliorée avec des skip connections et des blocs d'attention.
+    
+    On suppose que le backbone fournit :
+      - Un feature map final (x)
+      - Une liste de skip features [skip1, skip2, skip3, skip4]
+        correspondant aux échelles progressives.
+    
+    embed_dims : liste contenant le nombre de canaux pour chaque étape du décodeur.
+    num_classes : nombre de classes à prédire.
+    """
+    def __init__(self, embed_dims, num_classes):
+        super(ImprovedSegmentationHead, self).__init__()
+        self.block1 = UpscalingBlock(embed_dims[0], embed_dims[1])
+        self.block2 = UpscalingBlock(embed_dims[1], embed_dims[2])
+        self.block3 = UpscalingBlock(embed_dims[2], embed_dims[3])
+        self.block4 = UpscalingBlock(embed_dims[3], embed_dims[4])
+        self.final_conv = nn.Conv2d(embed_dims[4], num_classes, kernel_size=1)
+
+    def forward(self, x, skip_features=None):
+        """
+        Args:
+            x (torch.Tensor): Feature map d'entrée (issue du backbone, de faible résolution).
+            skip_features (list ou None): Liste contenant des tenseurs de features intermédiaires.
+                                          Si None, aucune skip connection n'est utilisée.
+        Returns:
+            torch.Tensor: Carte de segmentation avec num_classes canaux.
+        """
+        if skip_features is None:
+            skip_features = [None, None, None, None]
+
+        x = self.block1(x, skip=skip_features[0])
+        x = self.block2(x, skip=skip_features[1])
+        x = self.block3(x, skip=skip_features[2])
+        x = self.block4(x, skip=skip_features[3])
+        x = self.final_conv(x)
+        return x
+
 class Norm2D(nn.Module):
     """A normalization layer for 2D inputs.
 
@@ -178,45 +278,11 @@ class PrithviSeg(nn.Module):
 
         self.prithvi_100M_backbone = model
 
-        def upscaling_block(in_channels: int, out_channels: int) -> nn.Module:
-            """Upscaling block.
-
-            Args:
-                in_channels (int): number of input channels.
-                out_channels (int): number of output channels.
-
-            Returns:
-                An upscaling block configured to upscale spatially.
-            """
-            return nn.Sequential(
-                nn.ConvTranspose2d(
-                    in_channels=in_channels,
-                    out_channels=out_channels,
-                    kernel_size=3,
-                    stride=2,
-                    padding=1,
-                    output_padding=1,
-                ),
-                nn.Conv2d(
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    kernel_size=3,
-                    padding=1,
-                ),
-                nn.BatchNorm2d(out_channels),
-                nn.ReLU(),
-            )
-
         embed_dims = [
             (model_args["embed_dim"] * model_args["num_frames"]) // (2**i)
             for i in range(5)
         ]
-        self.segmentation_head = nn.Sequential(
-            *[upscaling_block(embed_dims[i], embed_dims[i + 1]) for i in range(4)],
-            nn.Conv2d(
-                kernel_size=1, in_channels=embed_dims[-1], out_channels=num_classes
-            ),
-        )
+        self.segmentation_head = ImprovedSegmentationHead(embed_dims,num_classes)
 
     def forward(self, img: torch.Tensor) -> torch.Tensor:
         """Define the forward pass of the model.
