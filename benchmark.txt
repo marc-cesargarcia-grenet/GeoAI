@@ -1,0 +1,21 @@
+BENCHMARK TRTJREG ERTFGHNEIRGHGBGRNBH IEFRPG Z
+
+BASE (à préciser)
+
+
+DiceLoss, 5 epochs, sample
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │           0.75            │
+│     test_Acc_1_epoch      │            1.0            │
+│     test_IoU_0_epoch      │           0.75            │
+│     test_IoU_1_epoch      │            0.5            │
+│  test_Precision_0_epoch   │            1.0            │
+│  test_Precision_1_epoch   │            0.5            │
+│    test_Recall_0_epoch    │           0.75            │
+│    test_Recall_1_epoch    │            1.0            │
+│      test_aAcc_epoch      │     0.800000011920929     │
+│      test_loss_epoch      │    0.9999738931655884     │
+│      test_mIoU_epoch      │           0.625           │
+└───────────────────────────┴───────────────────────────┘
