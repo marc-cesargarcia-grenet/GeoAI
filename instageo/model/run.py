@@ -79,6 +79,9 @@ def get_device() -> str:
         if torch.cuda.is_available():
             device = "gpu"
             logging.info("GPU is available. Using GPU...")
+        elif torch.backends.mps.is_available():
+            device = "mps"
+            logging.info("Apple GPU is available. Using GPU...")
         else:
             device = "cpu"
             logging.info("Neither GPU nor TPU is available. Using CPU...")

@@ -169,4 +169,4 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
-InstaGeo-E2E-Geospatial-ML
+outputs/*
