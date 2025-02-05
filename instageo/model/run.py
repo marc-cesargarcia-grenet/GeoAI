@@ -210,9 +210,9 @@ class FocalLoss(nn.Module):
 
 
 loss_fn = DiceLoss()
-loss_fn = lambda preds, targets: 0.5 * DiceLoss()(preds, targets) + 0.5 * FocalLoss()(
-    preds, targets
-)
+# loss_fn = lambda preds, targets: 0.5 * DiceLoss()(preds, targets) + 0.5 * FocalLoss()(
+#     preds, targets
+# )
 
 
 class PrithviSegmentationModule(pl.LightningModule):
@@ -252,10 +252,10 @@ class PrithviSegmentationModule(pl.LightningModule):
             freeze_backbone=freeze_backbone,
         )
         weight_tensor = torch.tensor(class_weights).float() if class_weights else None
-        self.criterion = nn.CrossEntropyLoss(
-            ignore_index=ignore_index, weight=weight_tensor
-        )
-        # self.criterion = loss_fn
+        # self.criterion = nn.CrossEntropyLoss(
+        #     ignore_index=ignore_index, weight=weight_tensor
+        # )
+        self.criterion = loss_fn
         self.learning_rate = learning_rate
         self.ignore_index = ignore_index
         self.weight_decay = weight_decay

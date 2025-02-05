@@ -1,0 +1,67 @@
+Base modèle, 5 epochs
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │    0.3636363744735718     │
+│     test_Acc_1_epoch      │           0.75            │
+│     test_IoU_0_epoch      │    0.3333333432674408     │
+│     test_IoU_1_epoch      │    0.27272728085517883    │
+│  test_Precision_0_epoch   │     0.800000011920929     │
+│  test_Precision_1_epoch   │    0.30000001192092896    │
+│    test_Recall_0_epoch    │    0.3636363744735718     │
+│    test_Recall_1_epoch    │           0.75            │
+│      test_aAcc_epoch      │    0.46666666865348816    │
+│      test_loss_epoch      │    1.0666059255599976     │
+│      test_mIoU_epoch      │    0.3030303120613098     │
+└───────────────────────────┴───────────────────────────┘
+
+Marc modèle, 5 epochs
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │    0.6363636255264282     │
+│     test_Acc_1_epoch      │            0.0            │
+│     test_IoU_0_epoch      │    0.46666666865348816    │
+│     test_IoU_1_epoch      │            0.0            │
+│  test_Precision_0_epoch   │    0.6363636255264282     │
+│  test_Precision_1_epoch   │            0.0            │
+│    test_Recall_0_epoch    │    0.6363636255264282     │
+│    test_Recall_1_epoch    │            0.0            │
+│      test_aAcc_epoch      │    0.46666666865348816    │
+│      test_loss_epoch      │    0.7685319781303406     │
+│      test_mIoU_epoch      │    0.23333333432674408    │
+└───────────────────────────┴───────────────────────────┘
+
+Base modèle, 5 epochs, class imbalance (1vs800)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │    0.27272728085517883    │
+│     test_Acc_1_epoch      │           0.75            │
+│     test_IoU_0_epoch      │           0.25            │
+│     test_IoU_1_epoch      │           0.25            │
+│  test_Precision_0_epoch   │           0.75            │
+│  test_Precision_1_epoch   │    0.27272728085517883    │
+│    test_Recall_0_epoch    │    0.27272728085517883    │
+│    test_Recall_1_epoch    │           0.75            │
+│      test_aAcc_epoch      │    0.4000000059604645     │
+│      test_loss_epoch      │    0.5676120519638062     │
+│      test_mIoU_epoch      │           0.25            │
+└───────────────────────────┴───────────────────────────┘
+
+Base modèle, Dice + Focal, 5 epochs
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃        Test metric        ┃       DataLoader 0        ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│     test_Acc_0_epoch      │    0.09090909361839294    │
+│     test_Acc_1_epoch      │            1.0            │
+│     test_IoU_0_epoch      │    0.09090909361839294    │
+│     test_IoU_1_epoch      │    0.2857142984867096     │
+│  test_Precision_0_epoch   │            1.0            │
+│  test_Precision_1_epoch   │    0.2857142984867096     │
+│    test_Recall_0_epoch    │    0.09090909361839294    │
+│    test_Recall_1_epoch    │            1.0            │
+│      test_aAcc_epoch      │    0.3333333432674408     │
+│      test_loss_epoch      │    0.5235287547111511     │
+│      test_mIoU_epoch      │    0.18831168115139008    │
+└───────────────────────────┴───────────────────────────┘
