@@ -251,7 +251,7 @@ def get_raster_data(
     bands = []
     for band in data:
         if band.dtype == np.int16:
-            band.astype(np.float64)
+            band = band.astype(np.float64)
         if band.max() > 10:
             band *= 0.0001
         bands.append(band)
