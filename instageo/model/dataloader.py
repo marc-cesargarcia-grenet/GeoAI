@@ -22,53 +22,17 @@
 import os
 import random
 from functools import partial
-from typing import Any, Callable, List, Tuple
+from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
 import rasterio
 import torch
-import xarray as xr
 from absl import logging
 from PIL import Image
-from rasterio.crs import CRS
 from torchvision import transforms
 
-
-def open_mf_tiff_dataset(
-    band_files: dict[str, Any], load_masks: bool
-) -> tuple[xr.Dataset, xr.Dataset | None, CRS]:
-    """Open multiple TIFF files as an xarray Dataset.
-
-    Args:
-        band_files (Dict[str, Dict[str, str]]): A dictionary mapping band names to file paths.
-        load_masks (bool): Whether or not to load the masks files.
-
-    Returns:
-        (xr.Dataset, xr.Dataset | None, CRS): A tuple of xarray Dataset combining data from all the
-            provided TIFF files, (optionally) the masks, and the CRS
-    """
-    band_paths = list(band_files["tiles"].values())
-    bands_dataset = xr.open_mfdataset(
-        band_paths,
-        concat_dim="band",
-        combine="nested",
-        mask_and_scale=False,  # Scaling will be applied manually
-    )
-    bands_dataset.band_data.attrs["scale_factor"] = 1
-    mask_paths = list(band_files["fmasks"].values())
-    mask_dataset = (
-        xr.open_mfdataset(
-            mask_paths,
-            concat_dim="band",
-            combine="nested",
-        )
-        if load_masks
-        else None
-    )
-    with rasterio.open(band_paths[0]) as src:
-        crs = src.crs
-    return bands_dataset, mask_dataset, crs
+from instageo.data.hls_utils import open_mf_tiff_dataset
 
 
 def random_crop_and_flip(
@@ -282,6 +246,14 @@ def get_raster_data(
             data = src.read()
     if (not is_label) and bands:
         data = data[bands, ...]
+    # For some reasons, some few HLS tiles are not scaled in v2.0.
+    # In the following lines, we find and scale them
+    bands = []
+    for band in data:
+        if band.max() > 10:
+            band *= 0.0001
+        bands.append(band)
+    data = np.stack(bands, axis=0)
     return data
 
 

@@ -149,68 +149,6 @@ def create_dataloader(
     )
 
 
-import torch.nn.functional as F
-
-
-class DiceLoss(nn.Module):
-    def __init__(self, smooth: float = 1e-6):
-        super().__init__()
-        self.smooth = smooth
-
-    def forward(self, predictions: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        """Forward pass of Dice Loss.
-
-        Args:
-            predictions (torch.Tensor): Model predictions after softmax (B, C, H, W)
-            targets (torch.Tensor): Ground truth labels (B, H, W)
-
-        Returns:
-            torch.Tensor: Dice loss value
-        """
-        predictions = torch.softmax(predictions, dim=1)
-        targets = torch.nn.functional.one_hot(targets, predictions.size(1))
-        targets = targets.permute(0, 3, 1, 2)
-
-        intersection = torch.sum(predictions * targets, dim=[0, 2, 3])
-        union = torch.sum(predictions, dim=[0, 2, 3]) + torch.sum(
-            targets, dim=[0, 2, 3]
-        )
-
-        dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
-        return 1 - dice.mean()
-
-
-class FocalLoss(nn.Module):
-    def __init__(self, alpha=0.8, gamma=2):
-        super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-
-    def forward(self, preds, targets):
-        # preds: shape [B, C, H, W]
-        # targets: shape [B, H, W] with integer labels
-        # Convert targets to one-hot format:
-        num_classes = preds.size(1)
-        # one_hot will have shape [B, H, W, C]
-        targets_one_hot = F.one_hot(targets, num_classes=num_classes).float()
-        # Permute to [B, C, H, W]
-        targets_one_hot = targets_one_hot.permute(0, 3, 1, 2)
-
-        # Compute binary cross entropy with logits for each pixel/class
-        BCE = F.binary_cross_entropy_with_logits(
-            preds, targets_one_hot, reduction="none"
-        )
-        pt = torch.exp(-BCE)  # pt = exp(-loss)
-        focal_loss = self.alpha * (1 - pt) ** self.gamma * BCE
-        return focal_loss.mean()
-
-
-loss_fn = DiceLoss()
-# loss_fn = lambda preds, targets: 0.5 * DiceLoss()(preds, targets) + 0.5 * FocalLoss()(
-#     preds, targets
-# )
-
-
 class PrithviSegmentationModule(pl.LightningModule):
     """Prithvi Segmentation PyTorch Lightning Module."""
 
@@ -248,10 +186,9 @@ class PrithviSegmentationModule(pl.LightningModule):
             freeze_backbone=freeze_backbone,
         )
         weight_tensor = torch.tensor(class_weights).float() if class_weights else None
-        # self.criterion = nn.CrossEntropyLoss(
-        #     ignore_index=ignore_index, weight=weight_tensor
-        # )
-        self.criterion = loss_fn
+        self.criterion = nn.CrossEntropyLoss(
+            ignore_index=ignore_index, weight=weight_tensor
+        )
         self.learning_rate = learning_rate
         self.ignore_index = ignore_index
         self.weight_decay = weight_decay
@@ -639,10 +576,10 @@ def main(cfg: DictConfig) -> None:
         checkpoint_callback = ModelCheckpoint(
             monitor="val_mIoU",
             dirpath=hydra_out_dir,
-            filename="instageo_best_checkpoint",
+            filename="instageo_epoch-{epoch:02d}-val_iou-{val_mIoU:.2f}",
             auto_insert_metric_name=False,
             mode="max",
-            save_top_k=1,
+            save_top_k=3,
         )
 
         logger = TensorBoardLogger(hydra_out_dir, name="instageo")
@@ -768,10 +705,83 @@ def main(cfg: DictConfig) -> None:
             ) as dst:
                 dst.write(prediction, 1)
 
+    elif cfg.mode == "sliding_inference":
+        model = PrithviSegmentationModule.load_from_checkpoint(
+            cfg.checkpoint_path,
+            image_size=IM_SIZE,
+            learning_rate=cfg.train.learning_rate,
+            freeze_backbone=cfg.model.freeze_backbone,
+            num_classes=cfg.model.num_classes,
+            temporal_step=cfg.dataloader.temporal_dim,
+            class_weights=cfg.train.class_weights,
+            ignore_index=cfg.train.ignore_index,
+            weight_decay=cfg.train.weight_decay,
+        )
+        model.eval()
+        infer_filepath = os.path.join(root_dir, cfg.test_filepath)
+        assert (
+            os.path.splitext(infer_filepath)[-1] == ".json"
+        ), f"Test file path expects a json file but got {infer_filepath}"
+        output_dir = os.path.join(root_dir, "predictions")
+        os.makedirs(output_dir, exist_ok=True)
+        with open(os.path.join(infer_filepath)) as json_file:
+            hls_dataset = json.load(json_file)
+        for key, hls_tile_path in tqdm(
+            hls_dataset.items(), desc="Processing HLS Dataset"
+        ):
+            try:
+                hls_tile, _ = process_data(
+                    hls_tile_path,
+                    None,
+                    bands=cfg.dataloader.bands,
+                    no_data_value=cfg.dataloader.no_data_value,
+                    constant_multiplier=cfg.dataloader.constant_multiplier,
+                    mask_cloud=cfg.test.mask_cloud,
+                    replace_label=cfg.dataloader.replace_label,
+                    reduce_to_zero=cfg.dataloader.reduce_to_zero,
+                )
+            except rasterio.RasterioIOError:
+                continue
+            nan_mask = hls_tile == cfg.dataloader.no_data_value
+            nan_mask = np.any(nan_mask, axis=0).astype(int)
+            hls_tile, _ = process_and_augment(
+                hls_tile,
+                None,
+                mean=cfg.dataloader.mean,
+                std=cfg.dataloader.std,
+                temporal_size=cfg.dataloader.temporal_dim,
+                augment=False,
+            )
+            prediction = sliding_window_inference(
+                hls_tile,
+                model,
+                window_size=(cfg.test.img_size, cfg.test.img_size),
+                stride=cfg.test.stride,
+                batch_size=cfg.train.batch_size,
+                device=get_device(),
+            )
+            prediction = np.where(nan_mask == 1, np.nan, prediction)
+            prediction_filename = os.path.join(output_dir, f"{key}_prediction.tif")
+            with rasterio.open(hls_tile_path["tiles"]["B02_0"]) as src:
+                crs = src.crs
+                transform = src.transform
+            with rasterio.open(
+                prediction_filename,
+                "w",
+                driver="GTiff",
+                height=prediction.shape[0],
+                width=prediction.shape[1],
+                count=1,
+                dtype=str(prediction.dtype),
+                crs=crs,
+                transform=transform,
+            ) as dst:
+                dst.write(prediction, 1)
+
     # TODO: Add support for chips that are greater than image size used for training
     elif cfg.mode == "chip_inference":
         check_required_flags(["root_dir", "test_filepath", "checkpoint_path"], cfg)
-        output_dir = cfg.output_dir
+        output_dir = os.path.join(root_dir, "predictions")
         os.makedirs(output_dir, exist_ok=True)
         test_dataset = InstaGeoDataset(
             filename=test_filepath,
