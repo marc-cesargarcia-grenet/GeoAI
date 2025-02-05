@@ -319,7 +319,7 @@ class PrithviSeg(nn.Module):
             (model_args["embed_dim"] * model_args["num_frames"]) // (2**i)
             for i in range(5)
         ]
-        self.segmentation_head = self.segmentation_head = nn.Sequential(
+        self.segmentation_head = nn.Sequential(
             *[upscaling_block(embed_dims[i], embed_dims[i + 1]) for i in range(4)],
             nn.Conv2d(
                 kernel_size=1, in_channels=embed_dims[-1], out_channels=num_classes

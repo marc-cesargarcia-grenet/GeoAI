@@ -31,7 +31,6 @@ import pytorch_lightning as pl
 import rasterio
 import torch
 import torch.nn as nn
-import torchmetrics
 from omegaconf import DictConfig, OmegaConf
 from pytorch_lightning.callbacks import ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -80,9 +79,6 @@ def get_device() -> str:
         if torch.cuda.is_available():
             device = "gpu"
             logging.info("GPU is available. Using GPU...")
-        elif torch.backends.mps.is_available():
-            device = "mps"
-            logging.info("Apple GPU is available. Using GPU...")
         else:
             device = "cpu"
             logging.info("Neither GPU nor TPU is available. Using CPU...")
@@ -647,7 +643,6 @@ def main(cfg: DictConfig) -> None:
             auto_insert_metric_name=False,
             mode="max",
             save_top_k=3,
-            save_last=True,
         )
 
         logger = TensorBoardLogger(hydra_out_dir, name="instageo")
